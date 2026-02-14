@@ -13,21 +13,21 @@ const serviceImages: Record<string, string> = {
 
 const ServicesSection: React.FC = () => {
   return (
-    <section id="services" className="py-32 bg-[#FDFBF7]">
+    <section id="services" className="py-20 md:py-32 bg-[#FDFBF7]">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-16 md:mb-20 gap-8">
           <div className="max-w-xl">
-            <span className="text-[#C5A059] uppercase tracking-[0.3em] text-xs font-bold mb-4 block">Our Curated Menu</span>
-            <h2 className="text-5xl md:text-6xl leading-tight">Crafting Beauty, <br /><span className="italic">One Strand at a Time</span></h2>
+            <span className="text-[#C5A059] uppercase tracking-[0.3em] text-[10px] md:text-xs font-bold mb-4 block">Our Curated Menu</span>
+            <h2 className="text-4xl md:text-6xl leading-tight">Crafting Beauty, <br /><span className="italic font-serif">One Strand at a Time</span></h2>
           </div>
-          <p className="text-[#6B6661] max-w-sm leading-relaxed">
+          <p className="text-[#6B6661] max-w-sm leading-relaxed text-sm md:text-base">
             From precision architecture to avant-garde color, our services are designed to enhance your natural aesthetic with professional precision.
           </p>
         </div>
         
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-16">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12 md:gap-y-16">
           {SERVICES.map((service) => (
-            <div key={service.id} className="group">
+            <div key={service.id} className="group flex flex-col h-full">
               <div className="relative overflow-hidden mb-6 aspect-[4/5] bg-gray-100">
                 <img 
                   src={serviceImages[service.id] || 'https://picsum.photos/seed/hair/800/1000'} 
@@ -36,20 +36,20 @@ const ServicesSection: React.FC = () => {
                 />
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors duration-500"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-full group-hover:translate-y-0 transition-transform duration-500 bg-gradient-to-t from-black/60 to-transparent">
-                   <a href="#booking" className="text-white text-xs uppercase tracking-widest font-bold">Book this service</a>
+                   <a href="#booking" className="text-white text-[10px] uppercase tracking-widest font-bold">Reserve Service</a>
                 </div>
               </div>
               
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-2xl font-serif">{service.name}</h3>
-                <span className="text-[#C5A059] font-medium tracking-tight">{service.price}</span>
+                <h3 className="text-xl md:text-2xl font-serif">{service.name}</h3>
+                <span className="text-[#C5A059] font-bold tracking-tight text-sm">{service.price}</span>
               </div>
               
-              <p className="text-[#6B6661] text-sm leading-relaxed mb-4 line-clamp-2 group-hover:line-clamp-none transition-all duration-300">
+              <p className="text-[#6B6661] text-xs md:text-sm leading-relaxed mb-4 flex-grow">
                 {service.description}
               </p>
               
-              <div className="flex items-center text-[10px] uppercase tracking-[0.2em] text-[#9A948F] font-bold">
+              <div className="flex items-center text-[10px] uppercase tracking-[0.2em] text-[#9A948F] font-bold mt-auto">
                 <span className="w-8 h-px bg-[#C5A059] mr-3"></span>
                 {service.duration}
               </div>
