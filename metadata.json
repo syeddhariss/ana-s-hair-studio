@@ -1,0 +1,8 @@
+{
+  "name": "Ana's Hair Studio Revamp",
+  "description": "A sophisticated, modern, and high-end hair salon website featuring a Live Voice AI consultant and an integrated booking system.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
