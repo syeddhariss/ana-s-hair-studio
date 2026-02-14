@@ -1,8 +1,8 @@
 
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 
-// Audio Helpers
+// Base64 helper functions as required by the Live API documentation
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -53,41 +53,60 @@ const VoiceAIConsultant: React.FC = () => {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const stopConversation = () => {
+    console.log("Stopping conversation...");
     if (sessionRef.current) {
-      sessionRef.current.close();
+      try {
+        sessionRef.current.close();
+      } catch (e) {
+        console.error("Error closing session:", e);
+      }
       sessionRef.current = null;
     }
+    
     sourcesRef.current.forEach(source => {
       try { source.stop(); } catch(e) {}
     });
     sourcesRef.current.clear();
+    
+    if (audioContextsRef.current) {
+      audioContextsRef.current.input.close();
+      audioContextsRef.current.output.close();
+      audioContextsRef.current = null;
+    }
+
     setIsActive(false);
     setIsListening(false);
     setIsSpeaking(false);
+    nextStartTimeRef.current = 0;
   };
 
   const startConversation = async () => {
     setError(null);
-    const apiKey = (window as any).process?.env?.API_KEY || '';
-    
-    if (!apiKey) {
-      setError("AI Services currently unavailable. Please check configuration.");
-      return;
-    }
+    console.log("Starting conversation...");
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // 1. Initialize SDK with API Key from environment
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
+      // 2. Setup Audio Contexts (Must be done inside a user-triggered event)
       const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      
+      // Explicitly resume to ensure browsers allow audio capture/playback
+      await inputAudioContext.resume();
+      await outputAudioContext.resume();
+      
       audioContextsRef.current = { input: inputAudioContext, output: outputAudioContext };
 
+      // 3. Request Microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
+      // 4. Connect to Gemini Live
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
+            console.log("Gemini Live session opened");
             setIsActive(true);
             setIsListening(true);
             
@@ -114,16 +133,18 @@ const VoiceAIConsultant: React.FC = () => {
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputAudioContext.destination);
           },
-          onmessage: async (message) => {
-            const audioData = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (audioData) {
+          onmessage: async (message: LiveServerMessage) => {
+            // Handle audio output
+            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+            if (base64Audio) {
               setIsSpeaking(true);
-              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContext.currentTime);
+              const ctx = outputAudioContext;
+              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
               
-              const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContext, 24000, 1);
-              const source = outputAudioContext.createBufferSource();
+              const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+              const source = ctx.createBufferSource();
               source.buffer = audioBuffer;
-              source.connect(outputAudioContext.destination);
+              source.connect(ctx.destination);
               
               source.addEventListener('ended', () => {
                 sourcesRef.current.delete(source);
@@ -135,7 +156,9 @@ const VoiceAIConsultant: React.FC = () => {
               sourcesRef.current.add(source);
             }
 
+            // Handle interruption
             if (message.serverContent?.interrupted) {
+              console.log("Model interrupted");
               sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
@@ -143,11 +166,12 @@ const VoiceAIConsultant: React.FC = () => {
             }
           },
           onerror: (e) => {
-            console.error("Live AI Error:", e);
-            setError("Connection error. Please try again.");
+            console.error("Live AI Error Event:", e);
+            setError("Consultant encountered an error. Please restart.");
             stopConversation();
           },
           onclose: () => {
+            console.log("Gemini Live session closed");
             stopConversation();
           }
         },
@@ -156,15 +180,20 @@ const VoiceAIConsultant: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
-          systemInstruction: "You are the sophisticated and warm Voice Consultant for Ana's Hair Studio. Be elegant, helpful, and concise.",
+          systemInstruction: "You are the sophisticated, warm, and professional Voice Consultant for Ana's Hair Studio in Plano, TX. You guide clients through services like Designer Cuts, Balayage, and Treatments. Speak elegantly and concisely.",
         }
       });
 
       sessionRef.current = await sessionPromise;
       
-    } catch (err) {
-      console.error("Failed to start voice AI:", err);
-      setError("Microphone access is required for the Voice Consultant.");
+    } catch (err: any) {
+      console.error("Failed to initiate Voice AI:", err);
+      if (err.name === 'NotAllowedError') {
+        setError("Microphone access was denied. Please enable it in your browser.");
+      } else {
+        setError("Could not connect to the Voice AI. Please check your internet.");
+      }
+      setIsActive(false);
     }
   };
 
@@ -180,24 +209,26 @@ const VoiceAIConsultant: React.FC = () => {
           <span className="text-[#C5A059] uppercase tracking-[0.3em] text-xs font-bold mb-4 block">Interactive Experience</span>
           <h2 className="text-4xl md:text-6xl mb-6">Voice AI Concierge</h2>
           <p className="text-stone-400 max-w-xl mx-auto leading-relaxed">
-            Experience the future of beauty consultations. Speak directly with our virtual expert to find your perfect look.
+            Experience the future of salon consultations. Speak directly with our virtual expert to discuss your next transformation.
           </p>
         </div>
 
         <div className="flex flex-col items-center">
-          <div className={`relative w-48 h-48 flex items-center justify-center mb-12`}>
-            <div className={`absolute inset-0 border-2 border-[#C5A059]/30 rounded-full transition-transform duration-1000 ${isActive ? 'animate-ping' : ''}`}></div>
+          <div className="relative w-48 h-48 flex items-center justify-center mb-12">
+            {/* Visualizer Pulsing Ring */}
+            <div className={`absolute inset-0 border-2 border-[#C5A059]/30 rounded-full transition-all duration-1000 ${isActive ? 'animate-ping' : ''}`}></div>
+            
             <button 
               onClick={isActive ? stopConversation : startConversation}
-              className={`relative z-10 w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-500 ${
-                isActive ? 'bg-white text-stone-900' : 'bg-[#C5A059] text-white hover:scale-105 shadow-2xl'
+              className={`relative z-10 w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-500 shadow-2xl ${
+                isActive ? 'bg-white text-stone-900 scale-110' : 'bg-[#C5A059] text-white hover:scale-105'
               }`}
             >
               {isActive ? (
                 <>
                   <div className="flex space-x-1 mb-2">
                     {[1, 2, 3, 4].map(i => (
-                      <div key={i} className={`w-1 h-4 bg-stone-900 rounded-full ${isSpeaking || isListening ? 'animate-pulse' : ''}`} style={{ animationDelay: `${i * 0.1}s` }}></div>
+                      <div key={i} className={`w-1 h-5 bg-stone-900 rounded-full ${isSpeaking || isListening ? 'animate-bounce' : ''}`} style={{ animationDelay: `${i * 0.1}s` }}></div>
                     ))}
                   </div>
                   <span className="text-[10px] uppercase tracking-widest font-bold">End Chat</span>
@@ -213,17 +244,18 @@ const VoiceAIConsultant: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-center min-h-[40px]">
+          <div className="text-center min-h-[60px] max-w-sm">
             {error ? (
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-red-400 text-sm bg-red-400/10 px-4 py-2 rounded-full animate-fade-in">{error}</p>
             ) : isActive ? (
-              <div className="space-y-1">
-                <p className="text-[#C5A059] font-medium italic">
-                  {isSpeaking ? "Assistant is speaking..." : "Listening..."}
+              <div className="space-y-2 animate-fade-in">
+                <p className="text-[#C5A059] font-medium italic text-lg">
+                  {isSpeaking ? "Assistant is responding..." : "Listening to your request..."}
                 </p>
+                <p className="text-stone-500 text-[10px] uppercase tracking-widest">Studio audio active</p>
               </div>
             ) : (
-              <p className="text-stone-500 text-sm italic">Click to begin your vocal consultation</p>
+              <p className="text-stone-500 text-sm italic">Click the orb to speak with our AI Stylist</p>
             )}
           </div>
         </div>
