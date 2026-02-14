@@ -10,7 +10,8 @@ const Hero: React.FC = () => {
           alt="Elegant salon background" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-white/60 md:bg-white/40 md:bg-gradient-to-r from-white/80 via-white/40 to-transparent"></div>
+        {/* Refined subtle overlay: Much lower opacity and a more graceful gradient to let the image shine */}
+        <div className="absolute inset-0 bg-white/20 md:bg-gradient-to-r from-white/60 via-white/10 to-transparent"></div>
       </div>
       
       <div className="relative z-10 max-w-7xl mx-auto px-6 w-full py-20 md:py-0">
