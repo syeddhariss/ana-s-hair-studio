@@ -7,6 +7,10 @@
     <title>Ana's Hair Studio | Modern Elegance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        // Shim process.env for browser compatibility
+        window.process = window.process || { env: {} };
+    </script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -15,19 +19,26 @@
         h1, h2, h3, .serif {
             font-family: 'Playfair Display', serif;
         }
+        /* Fix for potential white flash on load */
+        #root:empty {
+            background: #FDFBF7;
+            height: 100vh;
+        }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
-  }
-}
-</script>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@19.0.0",
+        "react/": "https://esm.sh/react@19.0.0/",
+        "react-dom": "https://esm.sh/react-dom@19.0.0",
+        "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+        "@google/genai": "https://esm.sh/@google/genai@1.41.0"
+      }
+    }
+    </script>
 </head>
 <body class="bg-[#FDFBF7] text-[#2D2926]">
     <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>

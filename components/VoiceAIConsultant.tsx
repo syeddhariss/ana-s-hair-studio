@@ -1,6 +1,6 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
+import React, { useState, useRef } from 'react';
+import { GoogleGenAI, Modality } from '@google/genai';
 
 // Audio Helpers
 function decode(base64: string) {
@@ -57,7 +57,9 @@ const VoiceAIConsultant: React.FC = () => {
       sessionRef.current.close();
       sessionRef.current = null;
     }
-    sourcesRef.current.forEach(source => source.stop());
+    sourcesRef.current.forEach(source => {
+      try { source.stop(); } catch(e) {}
+    });
     sourcesRef.current.clear();
     setIsActive(false);
     setIsListening(false);
@@ -65,8 +67,16 @@ const VoiceAIConsultant: React.FC = () => {
   };
 
   const startConversation = async () => {
+    setError(null);
+    const apiKey = (window as any).process?.env?.API_KEY || '';
+    
+    if (!apiKey) {
+      setError("AI Services currently unavailable. Please check configuration.");
+      return;
+    }
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey });
       
       const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -97,14 +107,14 @@ const VoiceAIConsultant: React.FC = () => {
               };
               
               sessionPromise.then((session) => {
-                session.sendRealtimeInput({ media: pcmBlob });
+                if (session) session.sendRealtimeInput({ media: pcmBlob });
               });
             };
             
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputAudioContext.destination);
           },
-          onmessage: async (message: LiveServerMessage) => {
+          onmessage: async (message) => {
             const audioData = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (audioData) {
               setIsSpeaking(true);
@@ -126,7 +136,7 @@ const VoiceAIConsultant: React.FC = () => {
             }
 
             if (message.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => s.stop());
+              sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsSpeaking(false);
@@ -134,7 +144,7 @@ const VoiceAIConsultant: React.FC = () => {
           },
           onerror: (e) => {
             console.error("Live AI Error:", e);
-            setError("Connection lost. Please try again.");
+            setError("Connection error. Please try again.");
             stopConversation();
           },
           onclose: () => {
@@ -146,7 +156,7 @@ const VoiceAIConsultant: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
-          systemInstruction: "You are the sophisticated and warm Voice Consultant for Ana's Hair Studio in Plano, Texas. You guide clients through our premium services like the Designer Cut, Full Balayage, and Keratin treatments. Be elegant, helpful, and concise. Invite them to book an appointment if they are interested.",
+          systemInstruction: "You are the sophisticated and warm Voice Consultant for Ana's Hair Studio. Be elegant, helpful, and concise.",
         }
       });
 
@@ -170,21 +180,17 @@ const VoiceAIConsultant: React.FC = () => {
           <span className="text-[#C5A059] uppercase tracking-[0.3em] text-xs font-bold mb-4 block">Interactive Experience</span>
           <h2 className="text-4xl md:text-6xl mb-6">Voice AI Concierge</h2>
           <p className="text-stone-400 max-w-xl mx-auto leading-relaxed">
-            Experience the future of beauty consultations. Speak directly with our virtual expert to find your perfect look and learn about our signature services.
+            Experience the future of beauty consultations. Speak directly with our virtual expert to find your perfect look.
           </p>
         </div>
 
         <div className="flex flex-col items-center">
           <div className={`relative w-48 h-48 flex items-center justify-center mb-12`}>
-            {/* Visualizer Rings */}
             <div className={`absolute inset-0 border-2 border-[#C5A059]/30 rounded-full transition-transform duration-1000 ${isActive ? 'animate-ping' : ''}`}></div>
-            <div className={`absolute inset-4 border border-[#C5A059]/20 rounded-full transition-transform duration-[1500ms] ${isSpeaking ? 'scale-125 opacity-0' : 'scale-100'}`}></div>
-            
-            {/* Core Orb */}
             <button 
               onClick={isActive ? stopConversation : startConversation}
               className={`relative z-10 w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-500 ${
-                isActive ? 'bg-white text-stone-900' : 'bg-[#C5A059] text-white hover:scale-105'
+                isActive ? 'bg-white text-stone-900' : 'bg-[#C5A059] text-white hover:scale-105 shadow-2xl'
               }`}
             >
               {isActive ? (
@@ -207,15 +213,14 @@ const VoiceAIConsultant: React.FC = () => {
             </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center min-h-[40px]">
             {error ? (
-              <p className="text-red-400 text-sm animate-fade-in">{error}</p>
+              <p className="text-red-400 text-sm">{error}</p>
             ) : isActive ? (
-              <div className="space-y-2 animate-fade-in">
+              <div className="space-y-1">
                 <p className="text-[#C5A059] font-medium italic">
-                  {isSpeaking ? "Assistant is speaking..." : "Listening to you..."}
+                  {isSpeaking ? "Assistant is speaking..." : "Listening..."}
                 </p>
-                <p className="text-stone-500 text-xs uppercase tracking-widest">Speak naturally, like in our studio</p>
               </div>
             ) : (
               <p className="text-stone-500 text-sm italic">Click to begin your vocal consultation</p>
